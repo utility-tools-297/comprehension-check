@@ -1,5 +1,29 @@
 # SETUP
 
+## 前提（どのPCでも共通）
+
+- **uv を事前にインストールする（必須）**。Python 本体は uv が自動で用意するので、**uv だけ入れればよい**。
+  - `winget install --id astral-sh.uv -e`
+  - または `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`
+  - 導入後は**新しいターミナルを開き**、`uv --version` が出ることを確認する（PATH 反映のため）。
+- **初回起動時はインターネット接続が必要**。uv が Python 3.12 と依存（`uv.lock`）を取得する。
+  一度構築すれば、以後はオフラインでも起動できる。
+
+## 別PCへ導入するとき
+
+- **`git clone` での取得を推奨**。ZIP ダウンロード由来の「発行元を確認できませんでした」という
+  実行時セキュリティ警告（Mark of the Web）を避けられる。
+  ```
+  git clone https://github.com/utility-tools-297/comprehension-check.git
+  ```
+- すでに **ZIP で取得**した場合、展開ファイルに「インターネット由来」の印が付き、`run_app.bat`
+  実行時に警告が出る。次のいずれかで解除できる：
+  - エクスプローラでファイルを右クリック → プロパティ → 「ブロックの解除」にチェック → OK。
+  - PowerShell で一括解除：`Get-ChildItem -Recurse <展開先フォルダ> | Unblock-File`
+  - `run_app.bat` を使わず、ターミナルで直接 `uv run python -m comprehension_check` を実行する。
+- 文書データ（`data/app.db` と登録済み文書）は配布物に含まれない。別PCでは空の状態で起動し、
+  文書はそのPC上の絶対パスで登録し直す。
+
 ## 環境構築
 
 ```
@@ -14,7 +38,7 @@ uv run python -m comprehension_check
 
 ブラウザで `http://localhost:8020` を開く。**このPCからのみ**アクセスできる（ループバック
 127.0.0.1:8020 で待受。同一 LAN / Tailscale 等の別端末からは接続できない）。`run/run_app.bat`
-からも起動できる。
+からも起動できる（uv 未導入時は導入方法を案内して終了する）。
 
 ## 使い方
 
@@ -51,4 +75,4 @@ uv run python -m comprehension_check
 
 ## 手動インストールが必要なツール
 
-現時点では無し（すべて uv で解決）。
+- **uv**（上記「前提」参照）。これ以外の依存は uv がすべて解決する。
