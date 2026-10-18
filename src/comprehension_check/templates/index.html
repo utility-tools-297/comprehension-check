@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}文書一覧 — 理解度チェック{% endblock %}
+{% block content %}
+  {% if err_msg %}
+    <p class="banner error">{{ err_msg }}</p>
+  {% elif err == "docgone" %}
+    <p class="banner error">開こうとした文書が見つかりません（削除済み、または古いリンクの可能性）。下の一覧から選び直してください。</p>
+  {% elif err == "notfound" %}
+    <p class="banner error">指定したパスにファイルが見つかりませんでした。</p>
+  {% elif err == "type" %}
+    <p class="banner error">現在は Markdown（.md / .markdown）・PDF（.pdf）・HTML（.html / .htm）のみ登録できます。</p>
+  {% endif %}
+
+  <section class="card">
+    <h2>文書を登録（Markdown / PDF / HTML）</h2>
+    <form method="post" action="/documents" class="add-form" id="add-form">
+      <label>ファイル
+        <span class="path-row">
+          <input type="text" name="path" id="path-input"
+                 placeholder="「参照…」で選ぶか、絶対パスを入力" required>
+          <button type="button" id="pick-btn" class="btn-ghost">参照…</button>
+        </span>
+      </label>
+      <label>タイトル（任意・空ならファイル名）
+        <input type="text" name="title" placeholder="（省略可）">
+      </label>
+      <button type="submit">登録</button>
+    </form>
+    <p class="hint">「参照…」でエクスプローラーから選べます。元ファイルは移動・コピーしません（パスを参照するだけ）。</p>
+  </section>
+
+  <section>
+    <h2>登録済み文書</h2>
+    {% if docs %}
+      <ul class="doc-list">
+        {% for d in docs %}
+          <li class="doc-item">
+            <div class="doc-main">
+              <a class="doc-title" href="/documents/{{ d.id }}">{{ d.title }}</a>
+              <span class="doc-type">{{ d.doc_type }}</span>
+              {% if d.id in missing %}<span class="doc-missing">ファイル無し</span>{% endif %}
+              <div class="doc-path">{{ d.path }}</div>
+            </div>
+            <form method="post" action="/documents/{{ d.id }}/delete"
+                  onsubmit="return confirm('登録を削除します（元ファイルは消えません）。よろしいですか？');">
+              <button type="submit" class="btn-ghost">登録解除</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="hint">まだ文書が登録されていません。上のフォームから追加してください。</p>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block script %}
+  <script src="/static/picker.js" defer></script>
+{% endblock %}

@@ -1,0 +1,269 @@
+:root {
+  --fg: #1f2937;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --accent: #2563eb;
+  --mask: #cbd5e1;
+  --mask-edge: #94a3b8;
+  --reveal: #fde68a;
+  --create: #fef3c7;
+  --create-edge: #f59e0b;
+  --error: #dc2626;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, "Segoe UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  color: var(--fg);
+  background: #f8fafc;
+  line-height: 1.7;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 700; font-size: 1.1rem; color: var(--fg); text-decoration: none; }
+.tagline { color: var(--muted); font-size: 0.85rem; }
+
+.container { max-width: 900px; margin: 0 auto; padding: 24px 20px 64px; }
+
+h2 { font-size: 1.15rem; }
+
+.banner { padding: 10px 14px; border-radius: 8px; }
+.banner.error { background: #fef2f2; color: var(--error); border: 1px solid #fecaca; }
+
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 28px;
+}
+.add-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.add-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); flex: 1 1 260px; }
+.add-form input {
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 0.95rem;
+}
+.path-row { display: flex; gap: 8px; align-items: stretch; }
+.path-row input { flex: 1 1 auto; min-width: 0; }
+.path-row .btn-ghost { white-space: nowrap; }
+button {
+  padding: 8px 16px; border: none; border-radius: 8px; background: var(--accent); color: #fff;
+  font-size: 0.9rem; cursor: pointer;
+}
+button:hover { filter: brightness(1.05); }
+.btn-ghost { background: #fff; color: var(--fg); border: 1px solid var(--line); }
+.hint { color: var(--muted); font-size: 0.85rem; }
+
+.doc-list { list-style: none; padding: 0; margin: 0; }
+.doc-item {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: 14px 0; border-bottom: 1px solid var(--line);
+}
+.doc-title { font-weight: 600; color: var(--accent); text-decoration: none; font-size: 1.02rem; }
+.doc-type { margin-left: 8px; font-size: 0.72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+.doc-missing { margin-left: 8px; font-size: 0.72rem; color: var(--error); }
+.doc-path { color: var(--muted); font-size: 0.78rem; word-break: break-all; margin-top: 2px; }
+
+/* ---- Viewer ---- */
+.viewer-head {
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 16px;
+  flex-wrap: wrap; margin-bottom: 8px;
+}
+.back { color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+.viewer-title { margin: 4px 0 0; }
+.toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.mode-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mode-switch button { background: #fff; color: var(--fg); border-radius: 0; }
+.mode-switch button.active { background: var(--accent); color: #fff; }
+.cloze-count { color: var(--muted); font-size: 0.82rem; }
+.status { margin: 6px 0; padding: 8px 12px; border-radius: 8px; background: #fef2f2; color: var(--error); border: 1px solid #fecaca; }
+.create-hint { color: var(--muted); font-size: 0.85rem; background: #f1f5f9; padding: 8px 12px; border-radius: 8px; }
+
+.doc {
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  padding: 24px 28px; margin-top: 10px;
+}
+.doc img { max-width: 100%; }
+.doc pre { background: #f1f5f9; padding: 12px; border-radius: 8px; overflow: auto; }
+.doc code { background: #f1f5f9; padding: 1px 4px; border-radius: 4px; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--line); margin: 0; padding-left: 14px; color: var(--muted); }
+
+/* クローズ（穴）。実践では元の文字幅を保ったままマスクする（レイアウトを崩さない）。 */
+.cloze { border-radius: 3px; }
+.doc.mode-practice .cloze {
+  color: transparent;
+  background: var(--mask);
+  box-shadow: inset 0 0 0 1px var(--mask-edge);
+  cursor: pointer;
+}
+.doc.mode-practice .cloze * { color: transparent; }
+.doc.mode-practice .cloze.revealed {
+  color: inherit;
+  background: var(--reveal);
+  box-shadow: none;
+}
+.doc.mode-practice .cloze.revealed * { color: inherit; }
+
+/* 作成モードでは中身を見せ、クリックで削除できることを示す。 */
+.doc.mode-create .cloze {
+  background: var(--create);
+  border-bottom: 2px solid var(--create-edge);
+  cursor: pointer;
+}
+
+/* ---- PDF ビューア ---- */
+.tool-switch { margin-left: 4px; }
+.create-tools { display: inline-flex; align-items: center; gap: 10px; }
+/* display 指定が [hidden] の UA 規定を上書きしてしまうので、hidden を明示的に優先する
+   （実践モードでは作成ツールを出さない）。 */
+.create-tools[hidden] { display: none; }
+#make-blank { padding: 6px 14px; }
+#make-blank:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+
+.pdf-doc { margin-top: 10px; }
+.pdf-page {
+  position: relative;
+  margin: 0 auto 16px;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+}
+.pdf-canvas { display: block; }
+
+/* PDF.js テキストレイヤ（選択用。文字は透明で canvas の上に重ねる） */
+.text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  opacity: 1;
+}
+.text-layer span,
+.text-layer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+.text-layer ::selection { background: rgba(37, 99, 235, 0.35); }
+.pdf-doc .text-layer { pointer-events: none; }
+.pdf-doc.mode-create.tool-text .text-layer { pointer-events: auto; }
+
+/* マスク・矩形を重ねる層 */
+.blank-layer { position: absolute; inset: 0; pointer-events: none; }
+.pdf-doc.mode-create.tool-rect .blank-layer { pointer-events: auto; cursor: crosshair; }
+
+.mask { position: absolute; pointer-events: auto; border-radius: 2px; }
+/* 枠線を明示し、隠蔽時も表示（revealed）時も「どこが穴か」を枠線で示す（テキスト・矩形とも）。 */
+.pdf-doc.mode-practice .mask {
+  background: var(--mask);
+  box-shadow: inset 0 0 0 2px var(--mask-edge);
+  cursor: pointer;
+}
+.pdf-doc.mode-practice .mask.revealed {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--mask-edge);
+}
+
+/* 正誤コントロール（穴ごと: 正解/不正解ボタン＋回数）。 */
+.attempt-ctl {
+  position: absolute;
+  transform: translateX(-100%);
+  display: flex;
+  gap: 2px;
+  z-index: 6;
+  pointer-events: auto;
+  font-size: 11px;
+  line-height: 1;
+}
+.attempt-ctl .atk {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 4px;
+  padding: 1px 4px;
+  cursor: pointer;
+  color: #334155;
+}
+.attempt-ctl .atk.ok {
+  color: #15803d;
+}
+.attempt-ctl .atk.ng {
+  color: #b91c1c;
+}
+.attempt-ctl .atk.memo {
+  color: #2563eb;
+}
+/* メモが登録済みの穴は「✎」を塗りで強調する。 */
+.attempt-ctl .atk.memo.has-note {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+/* メモ本文のポップ（作成=プロンプト編集／実践=クリックで表示切替）。 */
+.note-pop {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  max-width: 260px;
+  min-width: 120px;
+  padding: 6px 8px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+  pointer-events: auto;
+}
+.note-pop[hidden] {
+  display: none;
+}
+/* 実践で穴を表示したら回数も隠す（作成モードでは常に表示）。 */
+.pdf-doc.mode-practice .attempt-ctl.revealed {
+  display: none;
+}
+.pdf-doc.mode-create .mask {
+  background: rgba(245, 158, 11, 0.25);
+  box-shadow: inset 0 0 0 1px var(--create-edge);
+  cursor: pointer;
+}
+.rect-preview {
+  position: absolute;
+  border: 1.5px dashed var(--create-edge);
+  background: rgba(245, 158, 11, 0.15);
+  pointer-events: none;
+}
+
+/* ---- HTML ビューア ---- */
+.html-doc {
+  margin-top: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+#html-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  /* 元ページにブラウザ相当の実ビューポート高を与え、内部スクロールで閲覧する。
+     （scrollHeight 追従にするとビューポート基準レイアウトのページで高さが伸びず空白化する） */
+  height: calc(100vh - 170px);
+  min-height: 420px;
+}

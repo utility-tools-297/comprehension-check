@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }} — 理解度チェック{% endblock %}
+{% block content %}
+  <div class="viewer-head">
+    <div>
+      <a href="/" class="back">← 一覧</a>
+      <h2 class="viewer-title">{{ doc.title }}</h2>
+    </div>
+    {% if not missing %}
+    <div class="toolbar" id="toolbar" data-doc-id="{{ doc.id }}">
+      <div class="mode-switch">
+        <button type="button" data-mode="practice" class="active">実践</button>
+        <button type="button" data-mode="create">作成</button>
+      </div>
+      <div class="practice-tools">
+        <button type="button" id="reveal-all" class="btn-ghost">全て表示</button>
+        <button type="button" id="hide-all" class="btn-ghost">全て隠す</button>
+      </div>
+      <span class="cloze-count">穴 {{ clozes|length }} 個</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <p class="status" id="status" hidden></p>
+
+  {% if missing %}
+    <p class="banner error">元ファイルが見つかりません: {{ doc.path }}</p>
+  {% else %}
+    <p class="create-hint" id="create-hint" hidden>
+      文章をドラッグで選択すると穴を作成します。既存の穴（下線）をクリックすると削除します。
+    </p>
+    <article id="doc" class="doc mode-practice" data-doc-id="{{ doc.id }}">
+      {{ body|safe }}
+    </article>
+  {% endif %}
+{% endblock %}
+{% block script %}
+  {% if not missing %}<script src="/static/app.js" defer></script>{% endif %}
+{% endblock %}

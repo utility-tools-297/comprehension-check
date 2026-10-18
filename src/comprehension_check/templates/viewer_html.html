@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.title }} — 理解度チェック{% endblock %}
+{% block content %}
+  <div class="viewer-head">
+    <div>
+      <a href="/" class="back">← 一覧</a>
+      <h2 class="viewer-title">{{ doc.title }}</h2>
+    </div>
+    {% if not missing %}
+    <div class="toolbar" id="toolbar">
+      <div class="mode-switch">
+        <button type="button" data-mode="practice" class="active">実践</button>
+        <button type="button" data-mode="create">作成</button>
+      </div>
+      <div class="practice-tools">
+        <button type="button" id="reveal-all" class="btn-ghost">全て表示</button>
+        <button type="button" id="hide-all" class="btn-ghost">全て隠す</button>
+      </div>
+      <div class="create-tools" hidden>
+        <div class="mode-switch tool-switch">
+          <button type="button" data-tool="text" class="active">テキスト選択</button>
+          <button type="button" data-tool="rect">矩形</button>
+        </div>
+        <button type="button" id="make-blank" disabled>穴を作成</button>
+      </div>
+      <span class="cloze-count" id="blank-count">穴 0 個</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <p class="status" id="status" hidden></p>
+
+  {% if missing %}
+    <p class="banner error">元ファイルが見つかりません: {{ doc.path }}</p>
+  {% else %}
+    <p class="create-hint" id="create-hint" hidden>
+      「テキスト選択」で文章をドラッグ、または「矩形」で図の一部を囲んで範囲を決め、「穴を作成」を押すと穴になります。
+      既存の穴をクリックで削除、各穴の「✎」でメモを編集できます。
+    </p>
+    <div id="html-status" class="hint">HTML を読み込んでいます…</div>
+    <div class="html-doc" data-doc-id="{{ doc.id }}">
+      {# src はマークアップで出力する。JS 代入だと sandbox フレームで描画されない個体があるため。
+         allow-scripts は必須: これが無いと親からの DOM 変更で描画が破棄され空白化する。
+         allow-same-origin は親が iframe DOM を操作（マスク注入）するために必須。 #}
+      <iframe id="html-frame" sandbox="allow-same-origin allow-scripts"
+              title="{{ doc.title }}"
+              src="/documents/{{ doc.id }}/asset/{{ src_name | urlencode }}"></iframe>
+    </div>
+  {% endif %}
+{% endblock %}
+{% block script %}
+  {% if not missing %}
+  <script src="/static/htmlviewer.js" defer></script>
+  {% endif %}
+{% endblock %}

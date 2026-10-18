@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# ツールのキャッシュ
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# 秘密（実体。.env.example は追跡する）
+.env
+
+# data / output は README のみ追跡（中身は外部管理・大容量になりうる）
+/data/*
+!/data/README.md
+/output/*
+!/output/README.md
+
+# ハーネス用の外部リポジトリ（clone した中身は追跡しない・README のみ）
+/repos_external/*
+!/repos_external/README.md
+
+# ※ config はデフォルト設定を git 管理するため無視しない。
+#   （秘密は .env、環境専用/大容量の設定だけ必要なら個別にここへ追記する）
