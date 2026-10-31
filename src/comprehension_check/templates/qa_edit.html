@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ "新規作問" if mode == "create" else "Q&A編集" }} — 理解度チェック{% endblock %}
+{% block content %}
+  <div class="viewer-head">
+    <div>
+      <a href="{{ '/' if mode == 'create' else '/documents/' ~ doc_id }}" class="back">← 戻る</a>
+      <h2 class="viewer-title">{{ "新規作問（Q&amp;A）" if mode == "create" else "Q&amp;A編集" }}</h2>
+    </div>
+  </div>
+
+  {% if err_msg %}<p class="banner error">{{ err_msg }}</p>{% endif %}
+  <p class="status" id="status" hidden></p>
+
+  <p class="hint">問題は表示され、答えは穴になります。1問につき1つの穴です。改行・箇条書きは入れず1行で書いてください
+    （長くて折り返すのは問題ありません）。</p>
+
+  <form id="qa-form" data-action="{{ action }}" data-mode="{{ mode }}">
+    {% if mode == "create" %}
+    <label>タイトル（任意・空ならファイル名）
+      <input type="text" name="title" id="qa-title" value="{{ title }}" placeholder="（省略可）">
+    </label>
+    <label>保存先フォルダ（任意・空なら既定の生成フォルダ）
+      <input type="text" name="dest" id="qa-dest" placeholder="（省略可）保存先フォルダの絶対パス">
+    </label>
+    {% endif %}
+
+    <ol id="qa-items" class="qa-items"></ol>
+
+    <div class="qa-actions">
+      <button type="button" id="qa-add" class="btn-ghost">＋ 問題を追加</button>
+      <button type="submit" id="qa-save">{{ "作成" if mode == "create" else "保存" }}</button>
+    </div>
+  </form>
+
+  <script id="qa-initial" type="application/json">{{ items | tojson }}</script>
+{% endblock %}
+{% block script %}
+  <script src="/static/qaeditor.js" defer></script>
+{% endblock %}

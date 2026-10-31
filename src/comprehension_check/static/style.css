@@ -113,6 +113,17 @@ button:hover { filter: brightness(1.05); }
 }
 .doc.mode-practice .cloze.revealed * { color: inherit; }
 
+/* 穴ごとの正誤回数・メモ（実践モードで穴の直後に出す。穴を表示すると一緒に隠れる）。 */
+.md-attempt { display: inline-flex; gap: 2px; margin: 0 3px; vertical-align: super;
+  font-size: 0.7rem; white-space: nowrap; }
+.md-attempt[hidden] { display: none; }
+.md-attempt button { padding: 0 5px; border: 1px solid var(--line); border-radius: 6px;
+  background: #fff; color: var(--muted); line-height: 1.6; cursor: pointer; }
+.md-attempt .md-ok { color: #047857; }
+.md-attempt .md-ng { color: #b91c1c; }
+.md-attempt .cc-n { margin-left: 2px; font-variant-numeric: tabular-nums; }
+.md-attempt .cc-memo.cc-has-note { background: #dbeafe; border-color: #93c5fd; color: var(--fg); }
+
 /* 作成モードでは中身を見せ、クリックで削除できることを示す。 */
 .doc.mode-create .cloze {
   background: var(--create);
@@ -267,3 +278,17 @@ button:hover { filter: brightness(1.05); }
   height: calc(100vh - 170px);
   min-height: 420px;
 }
+
+/* ---- Q&A作問エディタ ---- */
+.qa-items { list-style: decimal; padding-left: 1.6em; display: grid; gap: 14px; margin: 14px 0; }
+.qa-item { display: flex; gap: 10px; align-items: flex-start; }
+.qa-item .qa-fields { flex: 1; display: grid; gap: 6px; }
+.qa-item label { display: grid; gap: 3px; font-size: 0.85rem; color: var(--muted); }
+.qa-item textarea { width: 100%; resize: vertical; font: inherit; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 8px; }
+.qa-rowbtns { display: inline-flex; flex-direction: column; gap: 4px; }
+.qa-rowbtns .btn-ghost { padding: 2px 8px; }
+.qa-actions { display: flex; gap: 10px; margin-top: 16px; }
+#qa-form > label { display: grid; gap: 3px; margin-bottom: 10px; font-size: 0.9rem; }
+#qa-form > label input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+  font: inherit; }

@@ -39,6 +39,30 @@ def record(
     return counts_for_blank(conn, doc_id, blank_id), ""
 
 
+def md_blank_id(number: int) -> str:
+    """Markdown の穴番号を attempts 用の blank_id に変換する（PDF/HTML と名前空間を分ける）。"""
+    return f"md-{number}"
+
+
+def record_md(
+    conn: sqlite3.Connection, doc_id: str, number: int, result: str
+) -> tuple[dict[str, int] | None, str]:
+    """Markdown の穴の正誤を1件記録し、最新集計を返す。
+
+    Markdown の穴は blanks テーブルに無いため存在確認はしない（呼び出し側がファイルの
+    穴番号を検証する前提）。blank_id は "md-<番号>" を使う。
+    """
+    if result not in RESULTS:
+        return None, "不正な結果種別です。"
+    blank_id = md_blank_id(number)
+    conn.execute(
+        "INSERT INTO attempts (doc_id, blank_id, result, created_at) VALUES (?, ?, ?, ?)",
+        (doc_id, blank_id, result, ids.now_string()),
+    )
+    conn.commit()
+    return counts_for_blank(conn, doc_id, blank_id), ""
+
+
 def counts_for_blank(conn: sqlite3.Connection, doc_id: str, blank_id: str) -> dict[str, int]:
     """1つの穴の正解数・不正解数を返す。"""
     rows = conn.execute(

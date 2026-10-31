@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS blanks (
 CREATE INDEX IF NOT EXISTS idx_blanks_doc ON blanks (doc_id, page);
 
 -- 穴ごとの正誤記録（いつ正解/不正解したかの履歴）。集計して画面に数を出す。
+-- PDF/HTML は blank_id=blanks.id、Markdown は blank_id="md-<穴番号>" で同じテーブルに載せる。
 CREATE TABLE IF NOT EXISTS attempts (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     doc_id     TEXT NOT NULL,
@@ -42,6 +43,15 @@ CREATE TABLE IF NOT EXISTS attempts (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_attempts_blank ON attempts (doc_id, blank_id);
+
+-- Markdown の穴のメタ（メモ）。内容はファイル記法が正本なので、ここにはメモだけを
+-- (doc_id, 穴番号) をキーに持つ。正誤回数は attempts テーブル側（blank_id="md-<番号>"）。
+CREATE TABLE IF NOT EXISTS md_cloze_meta (
+    doc_id  TEXT NOT NULL,
+    number  INTEGER NOT NULL,
+    note    TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (doc_id, number)
+);
 """
 
 

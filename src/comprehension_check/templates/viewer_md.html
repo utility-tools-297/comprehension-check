@@ -7,11 +7,12 @@
       <h2 class="viewer-title">{{ doc.title }}</h2>
     </div>
     {% if not missing %}
-    <div class="toolbar" id="toolbar" data-doc-id="{{ doc.id }}">
+    <div class="toolbar" id="toolbar" data-doc-id="{{ doc.id }}"{% if is_qa %} data-qa="1"{% endif %}>
       <div class="mode-switch">
         <button type="button" data-mode="practice" class="active">実践</button>
-        <button type="button" data-mode="create">作成</button>
+        {% if not is_qa %}<button type="button" data-mode="create">作成</button>{% endif %}
       </div>
+      {% if is_qa %}<a href="/documents/{{ doc.id }}/qa" class="btn-ghost">Q&amp;A編集</a>{% endif %}
       <div class="practice-tools">
         <button type="button" id="reveal-all" class="btn-ghost">全て表示</button>
         <button type="button" id="hide-all" class="btn-ghost">全て隠す</button>

@@ -11,18 +11,20 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import unicodedata
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.responses import Response
 
-from comprehension_check import attempts, db, htmlblanks, mdcloze, pdfblanks, store
+from comprehension_check import attempts, db, htmlblanks, mdcloze, mdmeta, pdfblanks, qaset, store
 from comprehension_check.config import Config
 from comprehension_check.models import DOC_HTML, DOC_MARKDOWN, DOC_PDF, Document
 
@@ -195,6 +197,39 @@ def build_router(config: Config, templates: Jinja2Templates) -> APIRouter:
     def index(request: Request, err: str = "") -> Response:
         return _render_index(request, err=err)
 
+    @router.post("/restart")
+    def restart() -> Response:
+        """run/restart_app.bat をデタッチ起動してサーバーを再起動する。
+
+        バッチが現在のサーバー（-m comprehension_check）だけを停止して起動し直す。
+        デタッチ起動なので、このプロセスが停止されてもバッチ側は再起動を完遂する。
+        """
+        bat: Path | None = None
+        for parent in Path(__file__).resolve().parents:
+            cand = parent / "run" / "restart_app.bat"
+            if cand.exists():
+                bat = cand
+                break
+        if bat is not None:
+            subprocess.Popen(
+                ["cmd", "/c", "start", "", str(bat)],
+                cwd=str(bat.parent.parent),
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                close_fds=True,
+            )
+            message = "サーバーを再起動しています。数秒後にトップへ戻ります…"
+        else:
+            message = "再起動バッチ（run/restart_app.bat）が見つかりません。"
+        html = (
+            "<!doctype html><html lang='ja'><head><meta charset='utf-8'>"
+            "<meta http-equiv='refresh' content='8; url=/'>"
+            "<title>再起動中 - 理解度チェック</title></head>"
+            "<body style='font-family:sans-serif;padding:2rem'>"
+            f"<p>{message}</p><p><a href='/'>すぐ戻る</a></p>"
+            "</body></html>"
+        )
+        return HTMLResponse(html)
+
     @router.post("/documents")
     def add_document(request: Request, path: str = Form(...), title: str = Form("")) -> Response:
         p = _resolve_input_path(path)
@@ -249,16 +284,22 @@ def build_router(config: Config, templates: Jinja2Templates) -> APIRouter:
         text = _read_text(doc.path)
         if text is None:
             return templates.TemplateResponse(
-                request, "viewer_md.html", {"doc": doc, "missing": True, "body": "", "clozes": []}
+                request,
+                "viewer_md.html",
+                {"doc": doc, "missing": True, "body": "", "clozes": [], "is_qa": False},
             )
+        # Q&Aセットは自己識別マーカーを描画前に取り除く（html:False なので残すと本文に見えるため）。
+        is_qa = qaset.is_qa(text)
+        render_text = qaset.strip_marker(text) if is_qa else text
         return templates.TemplateResponse(
             request,
             "viewer_md.html",
             {
                 "doc": doc,
                 "missing": False,
-                "body": mdcloze.render_html(text),
-                "clozes": mdcloze.list_clozes(text),
+                "body": mdcloze.render_html(render_text),
+                "clozes": mdcloze.list_clozes(render_text),
+                "is_qa": is_qa,
             },
         )
 
@@ -296,7 +337,199 @@ def build_router(config: Config, templates: Jinja2Templates) -> APIRouter:
                 {"ok": False, "error": "元ファイルが見つかりません。"}, status_code=404
             )
         _write_text(doc.path, mdcloze.remove_cloze(text, number))
+        # 穴の削除に伴い、その穴の正誤回数・メモも消す。
+        conn = db.connect(config.db_path)
+        try:
+            mdmeta.delete_for_cloze(conn, doc_id, number)
+        finally:
+            conn.close()
         return JSONResponse({"ok": True, "error": ""})
+
+    # ---- Markdown: Q&A作問ツール（答えを穴にした .md を生成・編集。ファイルが正本） ----
+    def _unique_md_path(base: Path, stem: str) -> Path:
+        """base フォルダ内で衝突しない .md パスを作る（ファイル名に使えない文字は _ に置換）。"""
+        safe = re.sub(r'[\\/:*?"<>|]', "_", stem).strip() or "qa"
+        candidate = base / f"{safe}.md"
+        n = 1
+        while candidate.exists():
+            candidate = base / f"{safe}_{n}.md"
+            n += 1
+        return candidate
+
+    def _items_from_form(items: str) -> list[dict[str, Any]]:
+        """フォームの items(JSON) を辞書リストへ（壊れていれば空）。"""
+        try:
+            parsed = json.loads(items)
+        except json.JSONDecodeError:
+            return []
+        return [p for p in parsed if isinstance(p, dict)] if isinstance(parsed, list) else []
+
+    @router.get("/qa/new")
+    def qa_new(request: Request) -> Response:
+        return templates.TemplateResponse(
+            request,
+            "qa_edit.html",
+            {"mode": "create", "action": "/qa", "title": "", "items": [], "doc_id": ""},
+        )
+
+    @router.post("/qa")
+    def qa_create(
+        request: Request,
+        title: str = Form(""),
+        dest: str = Form(""),
+        items: str = Form("[]"),
+    ) -> Response:
+        # 答えを穴にした Markdown を生成 → 文書登録 → ビューアへ。
+        # 保存先が未指定なら既定の生成フォルダへ置く。
+        pairs = [
+            (str(p.get("question", "")), str(p.get("answer", ""))) for p in _items_from_form(items)
+        ]
+        pairs = [(q, a) for q, a in pairs if q.strip() or a.strip()]
+        if not pairs:
+            return templates.TemplateResponse(
+                request,
+                "qa_edit.html",
+                {
+                    "mode": "create",
+                    "action": "/qa",
+                    "title": title,
+                    "items": [],
+                    "doc_id": "",
+                    "err_msg": "1問以上入力してください。",
+                },
+            )
+        folder = _clean_path_input(dest) if dest.strip() else ""
+        base = Path(folder) if folder else config.generated_dir
+        base.mkdir(parents=True, exist_ok=True)
+        path = _unique_md_path(base, title.strip() or "qa")
+        path.write_text(qaset.generate(pairs), encoding="utf-8")
+        conn = db.connect(config.db_path)
+        try:
+            doc = store.add_document(conn, title.strip(), DOC_MARKDOWN, str(path))
+        finally:
+            conn.close()
+        return RedirectResponse(f"/documents/{doc.id}", status_code=303)
+
+    @router.get("/documents/{doc_id}/qa")
+    def qa_edit(request: Request, doc_id: str) -> Response:
+        doc = _get_doc(doc_id)
+        if doc is None or doc.doc_type != DOC_MARKDOWN:
+            return RedirectResponse("/?err=docgone", status_code=303)
+        text = _read_text(doc.path)
+        items = qaset.parse(text) if text is not None else None
+        if items is None:  # Q&Aセットでない（手書きMD等）はエディタ対象外
+            return RedirectResponse(f"/documents/{doc_id}", status_code=303)
+        return templates.TemplateResponse(
+            request,
+            "qa_edit.html",
+            {
+                "mode": "edit",
+                "action": f"/documents/{doc_id}/qa",
+                "title": doc.title,
+                "items": [
+                    {"number": it.number, "question": it.question, "answer": it.answer}
+                    for it in items
+                ],
+                "doc_id": doc_id,
+            },
+        )
+
+    @router.post("/documents/{doc_id}/qa")
+    def qa_save(doc_id: str, items: str = Form("[]")) -> Response:
+        # 編集後の項目列でファイルを書き直す。穴番号は維持（新規は最大+1）。
+        # ファイルから消えた番号のメタ（回数・メモ）は掃除する。
+        doc = _get_doc(doc_id)
+        if doc is None:
+            return JSONResponse({"ok": False, "error": "文書が見つかりません。"}, status_code=404)
+        text = _read_text(doc.path)
+        if text is None:
+            return JSONResponse(
+                {"ok": False, "error": "元ファイルが見つかりません。"}, status_code=404
+            )
+        old_numbers = {it.number for it in (qaset.parse(text) or [])}
+        parsed = _items_from_form(items)
+        used = {int(p["number"]) for p in parsed if p.get("number")}
+        next_n = max(old_numbers | used | {0}) + 1
+        new_items: list[qaset.QAItem] = []
+        for p in parsed:
+            q, a = str(p.get("question", "")), str(p.get("answer", ""))
+            if not (q.strip() or a.strip()):
+                continue
+            num = p.get("number")
+            if num is None:
+                num = next_n
+                next_n += 1
+            new_items.append(qaset.QAItem(number=int(num), question=q, answer=a))
+        if not new_items:
+            return JSONResponse({"ok": False, "error": "1問以上必要です。"})
+        _write_text(doc.path, qaset.render(new_items))
+        final_numbers = {it.number for it in new_items}
+        conn = db.connect(config.db_path)
+        try:
+            for n in old_numbers - final_numbers:
+                mdmeta.delete_for_cloze(conn, doc_id, n)
+        finally:
+            conn.close()
+        return JSONResponse({"ok": True, "error": ""})
+
+    # ---- Markdown: 穴ごとの正誤回数・メモ（内容はファイル正本・メタだけ DB 管理） ----
+    @router.get("/documents/{doc_id}/md-blanks")
+    def list_md_blanks(doc_id: str) -> Response:
+        doc = _get_doc(doc_id)
+        if doc is None or doc.doc_type != DOC_MARKDOWN:
+            return JSONResponse({"clozes": []})
+        text = _read_text(doc.path)
+        clozes = mdcloze.list_clozes(text) if text is not None else []
+        conn = db.connect(config.db_path)
+        try:
+            counts = attempts.counts_for_doc(conn, doc_id)
+            notes = mdmeta.notes_for_doc(conn, doc_id)
+        finally:
+            conn.close()
+        return JSONResponse(
+            {
+                "clozes": [
+                    {
+                        "number": c.number,
+                        "counts": counts.get(
+                            attempts.md_blank_id(c.number), {"correct": 0, "incorrect": 0}
+                        ),
+                        "note": notes.get(c.number, ""),
+                    }
+                    for c in clozes
+                ]
+            }
+        )
+
+    @router.post("/documents/{doc_id}/md-attempts")
+    def add_md_attempt(doc_id: str, number: int = Form(...), result: str = Form(...)) -> Response:
+        doc = _get_doc(doc_id)
+        if doc is None:
+            return JSONResponse({"ok": False, "error": "文書が見つかりません。"}, status_code=404)
+        text = _read_text(doc.path)
+        if text is None:
+            return JSONResponse(
+                {"ok": False, "error": "元ファイルが見つかりません。"}, status_code=404
+            )
+        if number not in {c.number for c in mdcloze.list_clozes(text)}:
+            return JSONResponse({"ok": False, "error": "対象の穴が見つかりません。"})
+        conn = db.connect(config.db_path)
+        try:
+            counts, error = attempts.record_md(conn, doc_id, number, result)
+        finally:
+            conn.close()
+        if error or counts is None:
+            return JSONResponse({"ok": False, "error": error})
+        return JSONResponse({"ok": True, "error": "", "counts": counts})
+
+    @router.post("/documents/{doc_id}/md-note")
+    def set_md_note(doc_id: str, number: int = Form(...), note: str = Form("")) -> Response:
+        conn = db.connect(config.db_path)
+        try:
+            mdmeta.set_note(conn, doc_id, number, note)
+        finally:
+            conn.close()
+        return JSONResponse({"ok": True, "error": "", "note": note})
 
     # ---- PDF: 元ファイル配信と穴（DB 管理） ----
     @router.get("/documents/{doc_id}/raw")

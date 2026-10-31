@@ -12,6 +12,12 @@
   {% endif %}
 
   <section class="card">
+    <h2>一問一答を作る（Q&A）</h2>
+    <p class="hint">問題と答えを入力すると、答えを穴にした Markdown を自動生成して登録します。</p>
+    <a href="/qa/new" class="btn-ghost">新規作問（Q&amp;A）</a>
+  </section>
+
+  <section class="card">
     <h2>文書を登録（Markdown / PDF / HTML）</h2>
     <form method="post" action="/documents" class="add-form" id="add-form">
       <label>ファイル
@@ -51,6 +57,15 @@
     {% else %}
       <p class="hint">まだ文書が登録されていません。上のフォームから追加してください。</p>
     {% endif %}
+  </section>
+
+  <section>
+    <h2>メンテナンス</h2>
+    <form method="post" action="/restart"
+          onsubmit="return confirm('サーバーを再起動します。数秒アクセスできなくなります。よろしいですか？');">
+      <button type="submit" class="btn-ghost">サーバーを再起動</button>
+    </form>
+    <p class="hint">コード更新の反映などに使います。現在のサーバー（-m comprehension_check）だけを停止して起動し直します（PC側に別ウィンドウが開きます。数秒で復帰）。</p>
   </section>
 {% endblock %}
 {% block script %}

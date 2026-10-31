@@ -315,3 +315,130 @@ def test_add_document_diagnosis_lists_folder_files(tmp_path: Path) -> None:
     res = client.post("/documents", data={"path": r"Z:\no\such\dir\x.html"}, follow_redirects=False)
     assert res.status_code == 200
     assert "フォルダ" in res.text
+
+
+def test_qa_create_generates_md_and_registers(tmp_path: Path) -> None:
+    """作問ツール：Q&A→答えを穴にした .md を生成・登録し、ビューアで問題が見え答えが穴になる。"""
+    import json
+
+    client = _client(tmp_path)
+    items = json.dumps([{"question": "日本の首都は？", "answer": "東京"}])
+    res = client.post("/qa", data={"title": "地理", "items": items}, follow_redirects=False)
+    assert res.status_code == 303
+    loc = res.headers["location"]
+    assert loc.startswith("/documents/")
+
+    view = client.get(loc)
+    assert "日本の首都は？" in view.text  # 問題は見える
+    assert 'data-cloze="1"' in view.text  # 答えは穴
+    assert "cc:qa" not in view.text  # マーカーは画面に出ない
+
+    files = list((tmp_path / "data" / "generated").glob("*.md"))
+    assert len(files) == 1
+    text = files[0].read_text(encoding="utf-8")
+    assert text.startswith("<!-- cc:qa -->")
+    assert "{{c1::東京}}" in text
+
+
+def test_md_attempt_note_and_blanks_roundtrip(tmp_path: Path) -> None:
+    """Markdown の穴に正誤を記録し、メモを保存でき、md-blanks に反映される。"""
+    md = _make_md(tmp_path, "首都は{{c1::東京}}。")
+    client = _client(tmp_path)
+    client.post("/documents", data={"path": str(md)}, follow_redirects=False)
+    doc_id = _only_doc_id(tmp_path)
+
+    blanks = client.get(f"/documents/{doc_id}/md-blanks").json()["clozes"]
+    assert blanks == [{"number": 1, "counts": {"correct": 0, "incorrect": 0}, "note": ""}]
+
+    res = client.post(f"/documents/{doc_id}/md-attempts", data={"number": 1, "result": "correct"})
+    assert res.json()["ok"] is True
+    assert res.json()["counts"] == {"correct": 1, "incorrect": 0}
+
+    # 存在しない穴番号は拒否。
+    res = client.post(f"/documents/{doc_id}/md-attempts", data={"number": 9, "result": "correct"})
+    assert res.json()["ok"] is False
+
+    client.post(f"/documents/{doc_id}/md-note", data={"number": 1, "note": "重要"})
+    blanks = client.get(f"/documents/{doc_id}/md-blanks").json()["clozes"]
+    assert blanks[0]["counts"] == {"correct": 1, "incorrect": 0}
+    assert blanks[0]["note"] == "重要"
+
+
+def test_qa_edit_reorder_preserves_meta_and_delete_removes_it(tmp_path: Path) -> None:
+    """Q&A編集：並べ替えでも回数・メモが穴に追従し、削除した問のメタは消える。"""
+    import json
+
+    client = _client(tmp_path)
+    items = json.dumps([{"question": "Q1", "answer": "A1"}, {"question": "Q2", "answer": "A2"}])
+    loc = client.post("/qa", data={"title": "t", "items": items}, follow_redirects=False).headers[
+        "location"
+    ]
+    doc_id = loc.rsplit("/", 1)[1]
+
+    client.post(f"/documents/{doc_id}/md-attempts", data={"number": 2, "result": "correct"})
+    client.post(f"/documents/{doc_id}/md-note", data={"number": 1, "note": "m1"})
+
+    # 並べ替え（2を先頭へ）。番号は維持される。
+    reordered = json.dumps(
+        [
+            {"number": 2, "question": "Q2", "answer": "A2"},
+            {"number": 1, "question": "Q1", "answer": "A1"},
+        ]
+    )
+    assert client.post(f"/documents/{doc_id}/qa", data={"items": reordered}).json()["ok"] is True
+    blanks = {b["number"]: b for b in client.get(f"/documents/{doc_id}/md-blanks").json()["clozes"]}
+    assert blanks[2]["counts"] == {"correct": 1, "incorrect": 0}  # 並べ替えても追従
+    assert blanks[1]["note"] == "m1"
+
+    # 問(number=1)を削除 → そのメタが消え、number=2 は残る。
+    only2 = json.dumps([{"number": 2, "question": "Q2", "answer": "A2"}])
+    client.post(f"/documents/{doc_id}/qa", data={"items": only2})
+    clozes = client.get(f"/documents/{doc_id}/md-blanks").json()["clozes"]
+    assert {c["number"] for c in clozes} == {2}
+    assert clozes[0]["counts"] == {"correct": 1, "incorrect": 0}
+
+
+def test_cloze_delete_removes_md_meta(tmp_path: Path) -> None:
+    """手書き Markdown でも、穴の削除で正誤回数・メモが消える。"""
+    md = _make_md(tmp_path, "首都は{{c1::東京}}。")
+    client = _client(tmp_path)
+    client.post("/documents", data={"path": str(md)}, follow_redirects=False)
+    doc_id = _only_doc_id(tmp_path)
+
+    client.post(f"/documents/{doc_id}/md-attempts", data={"number": 1, "result": "correct"})
+    client.post(f"/documents/{doc_id}/md-note", data={"number": 1, "note": "x"})
+
+    assert client.post(f"/documents/{doc_id}/cloze/delete", data={"number": 1}).json()["ok"] is True
+    assert client.get(f"/documents/{doc_id}/md-blanks").json()["clozes"] == []
+
+
+def test_qa_editor_pages_render(tmp_path: Path) -> None:
+    """作問フォーム（新規）と編集エディタ（既存Q&A）が描画できる。"""
+    import json
+
+    client = _client(tmp_path)
+    new_page = client.get("/qa/new")
+    assert new_page.status_code == 200
+    assert "qaeditor.js" in new_page.text
+
+    items = json.dumps([{"question": "Q1", "answer": "A1"}])
+    loc = client.post("/qa", data={"title": "t", "items": items}, follow_redirects=False).headers[
+        "location"
+    ]
+    doc_id = loc.rsplit("/", 1)[1]
+
+    editor = client.get(f"/documents/{doc_id}/qa")
+    assert editor.status_code == 200
+    assert "qaeditor.js" in editor.text
+    assert "A1" in editor.text  # 既存の答えが初期値として埋め込まれる
+
+    # ビューアには「Q&A編集」導線があり、手書きMDには出ない。
+    assert f"/documents/{doc_id}/qa" in client.get(f"/documents/{doc_id}").text
+    md = _make_md(tmp_path, "本文{{c1::語}}")
+    client.post("/documents", data={"path": str(md)}, follow_redirects=False)
+    from comprehension_check import db, store
+
+    conn = db.connect(Config(data_dir=tmp_path / "data").db_path)
+    plain = next(d.id for d in store.list_documents(conn) if d.id != doc_id)
+    conn.close()
+    assert "Q&A編集" not in client.get(f"/documents/{plain}").text

@@ -29,6 +29,11 @@ class Config:
         """文書レジストリ等を収める SQLite ファイルのパス。"""
         return self.data_dir / "app.db"
 
+    @property
+    def generated_dir(self) -> Path:
+        """Q&A作問ツールが生成する Markdown の既定保存先（保存先未指定のとき使う）。"""
+        return self.data_dir / "generated"
+
     @classmethod
     def default(cls) -> Config:
         """既定設定（データはプロジェクト直下 data/ に置く）。"""
